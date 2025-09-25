@@ -10,5 +10,6 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",
     "pydantic-settings>=2.10.1",
     "python-dotenv>=1.1.1",
+    "python-jose[cryptography]>=3.5.0",
     "sqlmodel>=0.0.25",
 ]

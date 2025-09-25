@@ -1,50 +1,62 @@
-from typing import List
+from typing import List, Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlmodel import Session, select
 
-from app.api.security_utils.password import password_hash, verify_password
+from app.api.security_utils.password import (
+    password_hash,
+    verify_password,
+    create_access_token,
+    get_current_user,
+)
 from app.db.session import get_session
 from app.models import User
 from app.models.user import Role
-from pydantic import EmailStr
-from app.schema.user import UserOut, UserCreate, UserBase
+from app.schema.auth import LoginIn, Token
+from app.schema.user import UserOut, UserCreate
 
 user_route = APIRouter()
 
 
-@user_route.get('/', response_model=List[UserOut])
-async def list_users(*, session: Session = Depends(get_session)):
+@user_route.get("/", response_model=List[UserOut], summary="List users")
+async def list_users(
+        session: Annotated[Session, Depends(get_session)],
+):
     users = session.exec(select(User)).all()
-    if not users:
-        raise HTTPException(status_code=404, detail='Users not found.')
+    # Odatda bo'sh ro'yxat 200 OK bilan []
     return users
 
 
-@user_route.post('/', response_model=UserOut)
-async def create_user(data: UserCreate, role: Role = Role.patient, session: Session = Depends(get_session)):
-    db_data = User.model_validate(data)
-    exists = session.exec(select(User).where(User.email == db_data.email)).first()
-
+@user_route.post(
+    "/register",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Register",
+)
+async def register(
+        data: UserCreate,
+        # Agar roldni query orqali berishni xohlasangiz (aks holda UserCreate ichiga qo'shib yuboring)
+        role: Annotated[Role, Query(description="User role")] = Role.patient,
+        session: Annotated[Session, Depends(get_session)] = None,
+):
+    # Email unikalmi?
+    exists = session.exec(select(User).where(User.email == data.email)).first()
     if exists:
-        raise HTTPException(status_code=400, detail=f"{db_data.email} email avval ham ro'yxatdan o'tgan")
-    user = None
-    if role == Role.patient:
-        user = User(full_name=db_data.full_name,
-                    email=db_data.email,
-                    phone=db_data.phone,
-                    role=role,
-                    password=password_hash(db_data.password),
-                    bio=db_data.bio)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{data.email} email avval ham ro'yxatdan o'tgan",
+        )
 
-    elif role == Role.doctor:
-        user = User(full_name=db_data.full_name,
-                    email=db_data.email,
-                    phone=db_data.phone,
-                    role=role,
-                    password=password_hash(db_data.password),
-                    bio=db_data.bio)
-        # specialty_id muhim
+    # Parolni xeshlaymiz va foydalanuvchini yaratamiz
+    user = User(
+        full_name=data.full_name,
+        email=data.email,
+        phone=data.phone,
+        role=role,
+        password=password_hash(data.password),
+        bio=data.bio,
+    )
+    # TODO: agar role == doctor bo'lsa, specialty_id talab qilinadi
 
     session.add(user)
     session.commit()
@@ -52,16 +64,30 @@ async def create_user(data: UserCreate, role: Role = Role.patient, session: Sess
     return user
 
 
-@user_route.post('/login')
-async def create_user(login: EmailStr, password: str, session: Session = Depends(get_session)):
-    exists = session.exec(select(User).where(User.email == login)).first()
+@user_route.post(
+    "/auth/login",
+    response_model=Token,
+    summary="Login and get access token (Bearer)",
+)
+async def login(
+        body: LoginIn,
+        session: Annotated[Session, Depends(get_session)],
+):
+    user = session.exec(select(User).where(User.email == body.email)).first()
+    if not user or not verify_password(body.password, user.password):
+        # 401 va Bearer headeri — OAuth2 kliеntlar uchun to‘g‘ri semantika
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    if not exists:
-        raise HTTPException(status_code=400, detail=f"Bunday foydalanuvchi topilmadi.")
+    token = create_access_token({"sub": str(user.id)})
+    return Token(access_token=token, token_type="bearer")
 
-    if verify_password(password, exists.password):
-        return {"login": "Successfully"}
-    else:
-        return {"err": "Login yoki parol xato."}
 
-# UPDATE | DELETE
+@user_route.get("/me", response_model=UserOut, summary="Get current user")
+async def me(
+        current_user: Annotated[User, Depends(get_current_user)],
+):
+    return current_user
