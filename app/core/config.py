@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     ALGORITHM: str
-    JWT_SECRET: str
+    SECRET_KEY: str
 
 
 @lru_cache

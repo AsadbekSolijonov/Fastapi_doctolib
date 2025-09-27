@@ -32,7 +32,7 @@ def create_access_token(data: dict, expire_minutes: int | None = None):
         'iat': int(now.timestamp()),
         "exp": int(exp_dt.timestamp()),
     }
-    jwt_token = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.ALGORITHM)
+    jwt_token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return Token(access_token=jwt_token)
 
 
@@ -47,7 +47,7 @@ def get_current_user(
     token = creds.credentials
 
     try:
-        data = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.ALGORITHM])
+        data = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id = data.get('sub')
         user_id = int(user_id)
     except ExpiredSignatureError:
