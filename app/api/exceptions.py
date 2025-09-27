@@ -8,7 +8,7 @@ class BaseAuthExpn(HTTPException):
                  headers: dict | None = None):
         self.status_code = status_code
         self.detail = detail
-        update_headers = {"WWW-Authorization": 'Bearer'}
+        update_headers = {"WWW-Authenticated": 'Bearer'}
         if headers:
             headers.update(update_headers)
         super().__init__(status_code=self.status_code, detail=self.detail, headers=headers)
