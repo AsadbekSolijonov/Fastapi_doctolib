@@ -2,10 +2,10 @@ from typing import Annotated, Type
 
 from passlib.context import CryptContext
 from datetime import datetime, timezone, timedelta
-from jose import jwt, ExpiredSignatureError
+from jose import jwt, ExpiredSignatureError, JWTError
 from sqlmodel import Session
 
-from app.api.exceptions import InvalidToken
+from app.api.exceptions import ExpiredToken, InvalidToken, UserNotFound
 from app.db.session import settings, get_session
 from app.models import User
 from app.schema.auth import Token
@@ -39,7 +39,6 @@ def create_access_token(data: dict, expire_minutes: int | None = None):
 def get_current_user(
         creds: Annotated[HTTPAuthorizationCredentials, Depends(bearer_schema)],
         session: Annotated[Session, Depends(get_session)]) -> Type[User]:
-
     if not creds or creds.scheme.lower() != 'bearer':
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Cridentials were not provided!")
@@ -48,10 +47,17 @@ def get_current_user(
 
     try:
         data = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id = data.get('sub')
-        user_id = int(user_id)
     except ExpiredSignatureError:
+        raise ExpiredToken()
+    except JWTError:
         raise InvalidToken()
+    sub = data.get('sub')
+    try:
+        user_id = int(sub)
+    except (TypeError, ValueError):
+        raise InvalidToken('Bad subject')
 
     user = session.get(User, user_id)
+    if not user:
+        raise UserNotFound()
     return user
