@@ -19,6 +19,11 @@ class ExpiredToken(BaseAuthExpn):
         super().__init__(detail=detail)
 
 
+class BlockedToken(BaseAuthExpn):
+    def __init__(self, detail: str = "Token blocked."):
+        super().__init__(detail=detail)
+
+
 class InvalidToken(BaseAuthExpn):
     def __init__(self, detail: str = "Invalid Token."):
         super().__init__(detail=detail)

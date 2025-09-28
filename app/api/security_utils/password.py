@@ -23,20 +23,24 @@ def _now_utc():
     return datetime.now(timezone.utc)
 
 
-def _now_ts():
-    return _now_utc().timestamp()
+def _now_ts() -> int:
+    return int(_now_utc().timestamp())
 
 
-def block_jti(jti, exp_dt) -> None:
-    if jti and exp_dt:
-        _BLOCKED_JTIS[jti] = exp_dt
+def block_jti(jti: str, exp_ts: int) -> None:
+    if jti and exp_ts:
+        _BLOCKED_JTIS[jti] = exp_ts
 
 
 def _gc_blocked() -> None:
     now = _now_ts()
     for jti, exp in list(_BLOCKED_JTIS.items()):
+        print(f"exp: {exp}, now: {now}", end=">>>")
         if exp <= now:
+            print(f" done")
             _BLOCKED_JTIS.pop(jti, None)
+        else:
+            print(f" not done")
 
 
 def is_jti_blocked(jti: str) -> bool:
@@ -44,6 +48,14 @@ def is_jti_blocked(jti: str) -> bool:
         return False
     _gc_blocked()
     return jti in _BLOCKED_JTIS
+
+
+def peek_jti_and_exp(token: str) -> tuple[str | None, int]:
+    try:
+        claims = jwt.get_unverified_claims(token)
+        return claims.get('jti'), int(claims.get('exp', 0))
+    except JWTError:
+        return None, 0
 
 
 def password_hash(password: str):
@@ -86,7 +98,7 @@ def create_token_pair(data: dict):
     return create_access_token(data), create_refresh_token(data)
 
 
-def decode_token(token: str, excepted_type: str):
+def decode_token(token: str, expected_type: str):
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     except ExpiredSignatureError:
@@ -96,9 +108,9 @@ def decode_token(token: str, excepted_type: str):
 
     token_type = payload.get('type')
 
-    if token_type != excepted_type:
+    if token_type != expected_type:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail=f'Decode Token expected ‘{excepted_type}‘, but got ‘{token_type}‘.')
+                            detail=f'Decode Token expected ‘{expected_type}‘, but got ‘{token_type}‘.')
     return payload
 
 
@@ -110,13 +122,14 @@ def get_current_user(
                             detail="Cridentials were not provided!")
 
     token = creds.credentials
-    payload = decode_token(token, excepted_type='access')
-    jti = payload.get('jti')
-
-    if is_jti_blocked(jti):
-        raise InvalidToken('Token blocked.')
-
+    payload = decode_token(token, expected_type='access')
     sub = payload.get('sub')
+
+    jti = payload.get('jti')
+    if is_jti_blocked(jti):
+        print(f"119: {_BLOCKED_JTIS}")
+        raise InvalidToken('Token blocked.')
+    print(f"124: {_BLOCKED_JTIS}")
     try:
         user_id = int(sub)
     except (TypeError, ValueError):
@@ -136,9 +149,8 @@ def set_refresh_cookie(response: Response, refresh_token, max_ages: int | None =
         value=refresh_token,
         max_age=max_ages,
         httponly=True,
-        secure=True
     )
 
 
-def clear_refresh_token(response: Response) -> None:
+def clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(settings.REFRESH_COOKIE_NAME)

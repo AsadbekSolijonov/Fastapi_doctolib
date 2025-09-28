@@ -4,12 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlmodel import select, Session
 
+from app.api.exceptions import InvalidToken, BlockedToken, UserNotFound
 from app.api.security_utils.password import password_hash, verify_password, create_access_token, create_token_pair, \
-    set_refresh_cookie, get_current_user, bearer_schema, decode_token, block_jti, clear_refresh_token
+    set_refresh_cookie, get_current_user, bearer_schema, decode_token, block_jti, \
+    clear_refresh_cookie, is_jti_blocked, create_refresh_token, peek_jti_and_exp
 from app.db.session import get_session, settings
 from app.models import User
 from app.models.user import Role
-from app.schema.auth import LoginIn
+from app.schema.auth import LoginIn, Token
 from app.schema.user import UserOut, UserCreate
 
 auth_route = APIRouter()
@@ -54,28 +56,76 @@ async def login(body: LoginIn, response: Response, session: Session = Depends(ge
     if not user or not verify_password(body.password, user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid Cridentials")
 
-    access_token, refresh_token = create_token_pair({"sub": str(user.id)})
+    payload = {"sub": str(user.id)}
+
+    access_token, refresh_token = create_token_pair(data=payload)
 
     # set cookie
     set_refresh_cookie(response, refresh_token)
 
-    return access_token, refresh_token
+    return access_token
 
 
 @auth_route.post('/logout')
 async def user_logout(request: Request,
                       response: Response,
-                      user: Annotated[User, Depends(get_current_user)],  # Logout qilish uchun login qilgan bo'lishi kerak.
+                      user: Annotated[User, Depends(get_current_user)],
+                      # Logout qilish uchun login qilgan bo'lishi kerak.
                       creds: Annotated[HTTPAuthorizationCredentials, Depends(bearer_schema)]):
     access_token = creds.credentials
-    if creds and access_token and not creds.scheme.lower() == 'bearer':
-        p = decode_token(access_token, excepted_type='access')
+    if creds and access_token and creds.scheme.lower() == 'bearer':
+        p = decode_token(access_token, expected_type='access')
+        print(f"77: {p}")
         block_jti(p.get('jti'), p.get('exp', 0))
 
     rt = request.cookies.get(settings.REFRESH_COOKIE_NAME)
     if rt:
-        p = decode_token(rt, excepted_type='refresh')
+        p = decode_token(rt, expected_type='refresh')
+        print(f"83: {p}")
         block_jti(p.get('jti'), p.get('exp', 0))
 
-    clear_refresh_token(response)
+    clear_refresh_cookie(response)
     return {"detail": "Logout Successfully!"}
+
+
+@auth_route.post("/refresh")
+async def refresh_access_token(request: Request, response: Response,
+                               creds: Annotated[HTTPAuthorizationCredentials, Depends(bearer_schema)],
+                               session: Annotated[Session, Depends(get_session)]) -> Token:
+    if creds and creds.credentials and creds.scheme.lower() == 'bearer':
+        jti, exp_ts = peek_jti_and_exp(creds.credentials)
+        if jti and exp_ts:
+            block_jti(jti, exp_ts)
+
+    rt = request.cookies.get(settings.REFRESH_COOKIE_NAME)
+    if not rt:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token")
+
+    # 1) Refresh tokenni decode qilamiz
+    payload = decode_token(rt, expected_type="refresh")
+
+    # 2) Denylist tekshiruvi
+    if is_jti_blocked(payload.get("jti")):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token revoked")
+
+    # 3) Userni olish
+    try:
+        user_id = int(payload.get("sub"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bad subject")
+
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    # 4) Accessni yangilash
+    access = create_access_token({"sub": str(user.id)})
+
+    # 5) (Tavsiya etiladi) refresh rotatsiyasi:
+    # eski refresh jti ni bloklab, yangisini berish (reuse aniqlash uchun ham foydali)
+    block_jti(payload.get("jti"), int(payload.get("exp", 0)))
+    new_refresh = create_refresh_token({"sub": str(user.id)})
+    set_refresh_cookie(response, new_refresh)
+
+    # 6) Yangi access tokenni qaytaramiz
+    return access
