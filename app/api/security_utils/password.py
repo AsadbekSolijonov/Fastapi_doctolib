@@ -16,26 +16,30 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 myctx = CryptContext(schemes=["sha256_crypt", "md5_crypt"])
 bearer_schema = HTTPBearer(auto_error=False)
 
-_BLOCKED_JTIS: dict = {}
+_BLOCKED_JTIS: dict[str, int] = {}  # jti -> exp_ts
 
 
 def _now_utc():
     return datetime.now(timezone.utc)
 
 
-def blocked_jti(jti, exp_dt):
+def _now_ts():
+    return _now_utc().timestamp()
+
+
+def block_jti(jti, exp_dt) -> None:
     if jti and exp_dt:
         _BLOCKED_JTIS[jti] = exp_dt
 
 
-def _gc_blocked():
-    now = _now_utc().timestamp()
-    for jti, exp in _BLOCKED_JTIS.items():
-        if exp > now:
-            _BLOCKED_JTIS.pop(jti)
+def _gc_blocked() -> None:
+    now = _now_ts()
+    for jti, exp in list(_BLOCKED_JTIS.items()):
+        if exp <= now:
+            _BLOCKED_JTIS.pop(jti, None)
 
 
-def is_jti_blocked(jti: str):
+def is_jti_blocked(jti: str) -> bool:
     if not jti:
         return False
     _gc_blocked()
@@ -50,7 +54,7 @@ def verify_password(plain_pwd: str, hashed_pwd: str) -> bool:
     return myctx.verify(plain_pwd, hashed_pwd)
 
 
-def create_access_token(data: dict, expire_minutes: int | None = None):
+def create_access_token(data: dict, expire_minutes: int | None = None) -> Token:
     now = _now_utc()
     exp_dt = now + timedelta(minutes=expire_minutes or settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = {
@@ -64,7 +68,7 @@ def create_access_token(data: dict, expire_minutes: int | None = None):
     return Token(access_token=jwt_token)
 
 
-def create_refresh_token(data: dict, expire_days: int | None = None):
+def create_refresh_token(data: dict, expire_days: int | None = None) -> str:
     now = datetime.now(timezone.utc)
     exp_dt = now + timedelta(days=expire_days or settings.REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode = {
@@ -131,7 +135,10 @@ def set_refresh_cookie(response: Response, refresh_token, max_ages: int | None =
         key=settings.REFRESH_COOKIE_NAME,
         value=refresh_token,
         max_age=max_ages,
-        httponly=True
+        httponly=True,
+        secure=True
     )
 
 
+def clear_refresh_token(response: Response) -> None:
+    response.delete_cookie(settings.REFRESH_COOKIE_NAME)
