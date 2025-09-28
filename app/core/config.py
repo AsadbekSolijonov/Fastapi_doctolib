@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     ALGORITHM: str
     SECRET_KEY: str
+    REFRESH_TOKEN_EXPIRE_DAYS: int
+    REFRESH_COOKIE_NAME: str
 
 
 @lru_cache

@@ -1,7 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlmodel import select, Session
 
-from app.api.security_utils.password import password_hash, verify_password, create_access_token
+from app.api.security_utils.password import password_hash, verify_password, create_access_token, create_token_pair, \
+    set_refresh_cookie, get_current_user, bearer_schema
 from app.db.session import get_session
 from app.models import User
 from app.models.user import Role
@@ -44,11 +48,23 @@ async def register(data: UserCreate, role: Role = Role.patient, session: Session
 
 
 @auth_route.post('/login')
-async def login(body: LoginIn, session: Session = Depends(get_session)):
+async def login(body: LoginIn, response: Response, session: Session = Depends(get_session)):
     user = session.exec(select(User).where(User.email == body.email)).first()
 
     if not user or not verify_password(body.password, user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid Cridentials")
 
-    user_token = create_access_token({"sub": str(user.id)}, expire_minutes=1)
-    return user_token
+    access_token, refresh_token = create_token_pair({"sub": str(user.id)})
+
+    # set cookie
+    set_refresh_cookie(response, refresh_token)
+
+    return access_token, refresh_token
+
+
+@auth_route.post('/logout')
+async def user_logout(request: Request,
+                      response: Response,
+                      user: Annotated[User, Depends(get_current_user)],
+                      creds: Annotated[HTTPAuthorizationCredentials, Depends(bearer_schema)]):
+    pass
