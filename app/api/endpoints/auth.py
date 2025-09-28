@@ -75,13 +75,11 @@ async def user_logout(request: Request,
     access_token = creds.credentials
     if creds and access_token and creds.scheme.lower() == 'bearer':
         p = decode_token(access_token, expected_type='access')
-        print(f"77: {p}")
         block_jti(p.get('jti'), p.get('exp', 0))
 
     rt = request.cookies.get(settings.REFRESH_COOKIE_NAME)
     if rt:
         p = decode_token(rt, expected_type='refresh')
-        print(f"83: {p}")
         block_jti(p.get('jti'), p.get('exp', 0))
 
     clear_refresh_cookie(response)
@@ -92,6 +90,7 @@ async def user_logout(request: Request,
 async def refresh_access_token(request: Request, response: Response,
                                creds: Annotated[HTTPAuthorizationCredentials, Depends(bearer_schema)],
                                session: Annotated[Session, Depends(get_session)]) -> Token:
+    # 0) Access tokenni block qilamiz
     if creds and creds.credentials and creds.scheme.lower() == 'bearer':
         jti, exp_ts = peek_jti_and_exp(creds.credentials)
         if jti and exp_ts:
@@ -121,7 +120,7 @@ async def refresh_access_token(request: Request, response: Response,
     # 4) Accessni yangilash
     access = create_access_token({"sub": str(user.id)})
 
-    # 5) (Tavsiya etiladi) refresh rotatsiyasi:
+    # 5) Refresh rotatsiyasi:
     # eski refresh jti ni bloklab, yangisini berish (reuse aniqlash uchun ham foydali)
     block_jti(payload.get("jti"), int(payload.get("exp", 0)))
     new_refresh = create_refresh_token({"sub": str(user.id)})
