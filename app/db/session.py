@@ -14,8 +14,9 @@ engine = create_engine(
 
 def init_db():
     SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        session.execute(text("PRAGMA foreign_keys=ON"))
+    if settings.DATABASE_URL.startswith('sqlite'):
+        with Session(engine) as session:
+            session.execute(text("PRAGMA foreign_keys=ON"))
 
 
 def get_session() -> Generator:

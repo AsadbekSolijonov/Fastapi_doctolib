@@ -25,14 +25,8 @@ class User(SQLModel, table=True):
     phone: str = Field(nullable=False)
     role: Role = Field(nullable=False, default=Role.patient.value)
     bio: Optional[str] = Field(default=None)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(
-            DateTime(timezone=True),
-            server_default=text("(CURRENT_TIMESTAMP)"),
-            nullable=False
-        ),
-    )
+    created_at: datetime = Field(nullable=False,
+                                 default_factory=lambda: datetime.now(timezone.utc))
 
     specialty_id: Optional[int] = Field(default=None, foreign_key='specialty.id')
     specialty: Optional["Specialty"] = Relationship(back_populates='users')

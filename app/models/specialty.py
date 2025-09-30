@@ -9,6 +9,6 @@ class Specialty(SQLModel, table=True):
     __tablename__ = 'specialty'
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(nullable=False, unique=True)
-    descripition: Optional[str] = Field(default=None)
+    description: Optional[str] = Field(default=None)
 
     users: List["User"] = Relationship(back_populates="specialty")

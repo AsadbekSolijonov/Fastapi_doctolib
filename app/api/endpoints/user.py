@@ -15,10 +15,7 @@ user_route = APIRouter(dependencies=[Depends(auth_required)])
 
 @user_route.get('/', response_model=List[UserOut])
 async def list_users(*, session: Session = Depends(get_session)):
-    users = session.exec(select(User)).all()
-    if not users:
-        raise HTTPException(status_code=404, detail='Users not found.')
-    return users
+    return session.exec(select(User)).all()
 
 
 @user_route.get('/me', response_model=UserOut)

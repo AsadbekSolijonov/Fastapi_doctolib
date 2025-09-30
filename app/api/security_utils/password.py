@@ -13,7 +13,7 @@ from app.schema.auth import Token
 from fastapi import Depends, HTTPException, status, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-myctx = CryptContext(schemes=["sha256_crypt", "md5_crypt"])
+myctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_schema = HTTPBearer(auto_error=False)
 
 _BLOCKED_JTIS: dict[str, int] = {}  # jti -> exp_ts
@@ -66,7 +66,7 @@ def verify_password(plain_pwd: str, hashed_pwd: str) -> bool:
     return myctx.verify(plain_pwd, hashed_pwd)
 
 
-def create_access_token(data: dict, expire_minutes: int | None = None) -> Token:
+def create_access_token(data: dict, expire_minutes: int | None = None) -> str:
     now = _now_utc()
     exp_dt = now + timedelta(minutes=expire_minutes or settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = {
@@ -76,8 +76,8 @@ def create_access_token(data: dict, expire_minutes: int | None = None) -> Token:
         'iat': int(now.timestamp()),
         "exp": int(exp_dt.timestamp()),
     }
-    jwt_token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return Token(access_token=jwt_token)
+    access_token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return access_token
 
 
 def create_refresh_token(data: dict, expire_days: int | None = None) -> str:
@@ -94,11 +94,11 @@ def create_refresh_token(data: dict, expire_days: int | None = None) -> str:
     return ref_token
 
 
-def create_token_pair(data: dict):
+def create_token_pair(data: dict) -> tuple[str, str]:
     return create_access_token(data), create_refresh_token(data)
 
 
-def decode_token(token: str, expected_type: str):
+def decode_token(token: str, expected_type: str) -> dict:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     except ExpiredSignatureError:
@@ -141,7 +141,7 @@ def get_current_user(
     return user
 
 
-def set_refresh_cookie(response: Response, refresh_token, max_ages: int | None = None):
+def set_refresh_cookie(response: Response, refresh_token, max_ages: int | None = None) -> None:
     if max_ages is None:
         max_ages = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600
     response.set_cookie(
@@ -149,6 +149,7 @@ def set_refresh_cookie(response: Response, refresh_token, max_ages: int | None =
         value=refresh_token,
         max_age=max_ages,
         httponly=True,
+        # prod: secure=True
     )
 
 

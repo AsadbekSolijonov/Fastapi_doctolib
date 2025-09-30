@@ -49,7 +49,7 @@ async def register(data: UserCreate, role: Role = Role.patient, session: Session
     return user
 
 
-@auth_route.post('/login')
+@auth_route.post('/login', response_model=Token)
 async def login(body: LoginIn, response: Response, session: Session = Depends(get_session)):
     user = session.exec(select(User).where(User.email == body.email)).first()
 
@@ -63,7 +63,7 @@ async def login(body: LoginIn, response: Response, session: Session = Depends(ge
     # set cookie
     set_refresh_cookie(response, refresh_token)
 
-    return access_token
+    return Token(access_token=access_token)
 
 
 @auth_route.post('/logout')
@@ -86,7 +86,7 @@ async def user_logout(request: Request,
     return {"detail": "Logout Successfully!"}
 
 
-@auth_route.post("/refresh")
+@auth_route.post("/refresh", response_model=Token)
 async def refresh_access_token(request: Request, response: Response,
                                creds: Annotated[HTTPAuthorizationCredentials, Depends(bearer_schema)],
                                session: Annotated[Session, Depends(get_session)]) -> Token:
@@ -127,4 +127,4 @@ async def refresh_access_token(request: Request, response: Response,
     set_refresh_cookie(response, new_refresh)
 
     # 6) Yangi access tokenni qaytaramiz
-    return access
+    return Token(access_token=access.access_token if hasattr(access, "access_token") else access)
