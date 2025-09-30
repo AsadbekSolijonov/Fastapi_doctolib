@@ -24,24 +24,17 @@ async def register(data: UserCreate, role: Role = Role.patient, session: Session
 
     if exists:
         raise HTTPException(status_code=400, detail=f"{db_data.email} email avval ham ro'yxatdan o'tgan")
-    user = None
 
-    if role == Role.patient:
-        user = User(full_name=db_data.full_name,
-                    email=db_data.email,
-                    phone=db_data.phone,
-                    role=role,
-                    password=password_hash(db_data.password),
-                    bio=db_data.bio)
+    if role == Role.doctor and not data.specialty_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="“specialty_id“ bo'lishi zarur.")
 
-    elif role == Role.doctor:
-        user = User(full_name=db_data.full_name,
-                    email=db_data.email,
-                    phone=db_data.phone,
-                    role=role,
-                    password=password_hash(db_data.password),
-                    bio=db_data.bio)
-        # specialty_id muhim
+    user = User(full_name=db_data.full_name,
+                email=db_data.email,
+                phone=db_data.phone,
+                role=role,
+                password=password_hash(db_data.password),
+                bio=db_data.bio,
+                specialty_id=data.specialty_id if role == Role.doctor else None)
 
     session.add(user)
     session.commit()

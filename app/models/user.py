@@ -30,3 +30,5 @@ class User(SQLModel, table=True):
 
     specialty_id: Optional[int] = Field(default=None, foreign_key='specialty.id')
     specialty: Optional["Specialty"] = Relationship(back_populates='users')
+
+    room = Relationship(back_populates='doctors')

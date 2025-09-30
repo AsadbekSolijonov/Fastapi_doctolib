@@ -19,6 +19,7 @@ class UserOut(UserBase):  # ReadOnly
 
 class UserCreate(UserBase):  # Write Only (PUT/CREATE)
     password: str
+    specialty_id: int | None = None
 
 
 class UserUpdate(UserBase):  # PATCH Partial
