@@ -1,77 +1,92 @@
 from logging.config import fileConfig
-
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+import os
+import pkgutil
+import importlib
 
 from alembic import context
-from app.core.config import get_settings
-from app.models import *
+from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
+# 1) App config (.env) dan URL olish
+from app.core.config import get_settings
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
+settings = get_settings()
+
+# 2) Modellarni aniq yuklash (metadata to'lsin)
+#    Agar sizda app.models paketi bo'lsa, hammasini dinamika bilan import qilamiz:
+import app.models as models_pkg
+
+for m in pkgutil.iter_modules(models_pkg.__path__):
+    importlib.import_module(f"{models_pkg.__name__}.{m.name}")
+
+# Alembic config
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
+# Logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
+# Metadata
 target_metadata = SQLModel.metadata
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
+
+# (Ixtiyoriy) Constraint/index nomlari uchun konvensiya
+# from sqlalchemy import MetaData
+# naming_convention = {
+#     "ix": "ix_%(column_0_label)s",
+#     "uq": "uq_%(table_name)s_%(column_0_name)s",
+#     "ck": "ck_%(table_name)s_%(constraint_name)s",
+#     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+#     "pk": "pk_%(table_name)s"
+# }
+# target_metadata = MetaData(naming_convention=naming_convention)
+
+def _get_url() -> str:
+    # .env ustun bo'lsin; bo'lmasa alembic.ini dagi "sqlalchemy.url" dan olamiz
+    return settings.DATABASE_URL or config.get_main_option("sqlalchemy.url")
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
-    url = config.get_main_option("sqlalchemy.url")
+    """Offline mode."""
+    url = _get_url()
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        compare_type=True,
+        compare_server_default=True,
+        render_as_batch=True,  # SQLite uchun muhim
+        # include_schemas=True,           # agar public dan tashqari schema ishlatsangiz
+        # version_table_schema="public",  # Postgresda version jadvali qayerda saqlansin
     )
-
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
+    """Online mode."""
+    # Ini ichidagi sozlamalarni olib, URLni dinamik almashtiramiz
+    ini_section = config.get_section(config.config_ini_section, {})
+    ini_section["sqlalchemy.url"] = _get_url()
 
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        ini_section,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        future=True,
     )
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+            compare_server_default=True,
+            render_as_batch=True,  # SQLite uchun muhim
+            # include_schemas=True,
+            # version_table_schema="public",
         )
-
         with context.begin_transaction():
             context.run_migrations()
 
