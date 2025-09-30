@@ -63,7 +63,7 @@ async def login(body: LoginIn, response: Response, session: Session = Depends(ge
     # set cookie
     set_refresh_cookie(response, refresh_token)
 
-    return Token(access_token=access_token)
+    return Token(access_token=access_token.access_token if hasattr(access_token, "access_token") else access_token)
 
 
 @auth_route.post('/logout')
