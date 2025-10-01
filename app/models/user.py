@@ -23,12 +23,11 @@ class User(SQLModel, table=True):
     password: str = Field(nullable=False)
     full_name: str = Field(nullable=False)
     phone: str = Field(nullable=False)
-    role: Role = Field(nullable=False, default=Role.patient.value)
+    role: Role = Field(nullable=False, default=Role.patient)
     bio: Optional[str] = Field(default=None)
-    created_at: datetime = Field(nullable=False,
-                                 default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
 
     specialty_id: Optional[int] = Field(default=None, foreign_key='specialty.id')
     specialty: Optional["Specialty"] = Relationship(back_populates='users')
 
-    room = Relationship(back_populates='doctors')
+    rooms = Relationship(back_populates='doctor')

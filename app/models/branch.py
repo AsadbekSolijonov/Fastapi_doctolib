@@ -1,12 +1,13 @@
 from sqlmodel import SQLModel, Field, Relationship
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from app.models.user import User
 
 
-class Brach(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class Branch(SQLModel, table=True):
+    __tablename__ = 'branch'
+    id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(nullable=False)
     address: str = Field(nullable=False)
 
@@ -14,7 +15,8 @@ class Brach(SQLModel, table=True):
 
 
 class Section(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+    __tablename__ = 'section'
+    id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(nullable=False)
 
     branch_id = Field(foreign_key='branch.id', unique=True)
@@ -24,12 +26,12 @@ class Section(SQLModel, table=True):
 
 
 class Room(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     floor: int = Field(nullable=False)
     door_number: int = Field(nullable=False)
 
-    doctor_id: User | None = Field(default=None, foreign_key='users.id')
-    doctors: list['User'] = Relationship(back_populates='room')
+    doctor_id: Optional[int] = Field(default=None, foreign_key='users.id', ondelete='SET NULL', nullable=False)
+    doctor: Optional["User"] = Relationship(back_populates='rooms')
 
     section_id: Section = Field(nullable=False, foreign_key='section.id')
     section = Relationship(back_populates='rooms')
