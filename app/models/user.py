@@ -4,22 +4,16 @@ from typing import TYPE_CHECKING, Optional
 
 from pydantic import EmailStr
 from sqlmodel import SQLModel, Field, Relationship
-from sqlalchemy import Column, DateTime, text
+from app.models.enums import Role
 
 if TYPE_CHECKING:  # circler import uchun
-    from app.models.specialty import Specialty
-
-
-class Role(str, Enum):
-    patient = 'patient'
-    doctor = 'doctor'
-    admin = 'admin'
+    from app.models import Specialty, Appointment, AppointmentStatusHistory
 
 
 class User(SQLModel, table=True):
     __tablename__ = 'users'
     id: Optional[int] = Field(default=None, primary_key=True)
-    email: EmailStr = Field(unique=True)
+    email: EmailStr = Field(nullable=False, unique=True)
     password: str = Field(nullable=False)
     full_name: str = Field(nullable=False)
     phone: str = Field(nullable=False)
@@ -27,7 +21,19 @@ class User(SQLModel, table=True):
     bio: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
 
+    # ONE-TO-MANY SPECIALTY varianti:
     specialty_id: Optional[int] = Field(default=None, foreign_key='specialty.id')
     specialty: Optional["Specialty"] = Relationship(back_populates='users')
 
-    rooms = Relationship(back_populates='doctor')
+    # Appointments (ikki tomonga ajratilgan)
+    doctor_appointments: list["Appointment"] = Relationship(
+        back_populates="doctor",
+        sa_relationship_kwargs={"foreign_keys": ["Appointment.doctor_id"]}
+    )
+    patient_appointments: list["Appointment"] = Relationship(
+        back_populates="patient",
+        sa_relationship_kwargs={"foreign_keys": ["Appointment.patient_id"]}
+    )
+
+    # Status history author relationship (agar kerak bo‘lsa)
+    status_changes: list["AppointmentStatusHistory"] = Relationship(back_populates="changed_by_user")

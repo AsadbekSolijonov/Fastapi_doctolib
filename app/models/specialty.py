@@ -12,3 +12,4 @@ class Specialty(SQLModel, table=True):
     description: Optional[str] = Field(default=None)
 
     users: List["User"] = Relationship(back_populates="specialty")
+
