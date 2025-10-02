@@ -44,12 +44,12 @@ def get_user(user_id: int, db: Session = Depends(get_session)):
     return obj
 
 
-@user_route.post("", response_model=User, status_code=201)
-def create_user(payload: User, db: Session = Depends(get_session)):
-    db.add(payload)
-    db.commit()
-    db.refresh(payload)
-    return payload
+# @user_route.post("", response_model=User, status_code=201)
+# def create_user(payload: User, db: Session = Depends(get_session)):
+#     db.add(payload)
+#     db.commit()
+#     db.refresh(payload)
+#     return payload
 
 
 @user_route.patch("/{user_id}", response_model=User)
@@ -60,6 +60,7 @@ def update_user(user_id: int, payload: User, db: Session = Depends(get_session))
     update_data = payload.dict(exclude_unset=True)
     for k, v in update_data.items():
         setattr(obj, k, v)
+    # obj.sqlmodel_update(update_data)
     db.add(obj)
     db.commit()
     db.refresh(obj)

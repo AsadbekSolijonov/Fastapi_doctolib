@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import List
+from typing import List, Optional
 from sqlmodel import Session, select
 
 from app.db.session import get_session
@@ -9,10 +9,14 @@ router = APIRouter(prefix="/specialties", tags=["specialties"])
 
 
 @router.get("", response_model=List[Specialty])
-def list_specialties(db: Session = Depends(get_session),
+def list_specialties(sp: Optional[str] = Query(None),
+                     db: Session = Depends(get_session),
                      limit: int = Query(100, ge=1, le=500),
                      offset: int = Query(0, ge=0)):
-    q = select(Specialty).offset(offset).limit(limit)
+    q = select(Specialty)
+    if sp:
+        q = q.where(Specialty.name == sp)
+    q = q.offset(offset).limit(limit)
     return db.exec(q).all()
 
 

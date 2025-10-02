@@ -25,10 +25,10 @@ class Appointment(SQLModel, table=True):  # Uchrashuv vaqti
     status: "AppointmentStatus" = Field(default=AppointmentStatus.pending, nullable=False)
     note: Optional[str] = Field(default=None)
 
-    patient: "User" = Relationship(back_populates="patient_appointments",
-                                   sa_relationship_kwargs={"foreign_keys": ["Appointment.patient_id"]})
-    doctor: Optional["User"] = Relationship(back_populates="doctor_appointments",
-                                            sa_relationship_kwargs={"foreign_keys": ["Appointment.doctor_id"]})
+    # patient: "User" = Relationship(back_populates="patient_appointments",
+    #                                sa_relationship_kwargs={"foreign_keys": ["Appointment.patient_id"]})
+    # doctor: Optional["User"] = Relationship(back_populates="doctor_appointments",
+    #                                         sa_relationship_kwargs={"foreign_keys": ["Appointment.doctor_id"]})
     room: Optional["Room"] = Relationship(back_populates="appointments")
 
     payments: List["Payment"] = Relationship(back_populates="appointment")
