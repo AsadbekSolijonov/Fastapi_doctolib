@@ -5,11 +5,13 @@ from sqlmodel import Session, select
 from app.db.session import get_session
 from app.models.schedule import DoctorSchedule
 from app.models.enums import Weekday
+from app.schema.schedule import DoctorScheduleOut, DoctorScheduleCreate, DoctorScheduleUpdate
+from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/schedules", tags=["schedules"])
 
 
-@router.get("", response_model=List[DoctorSchedule])
+@router.get("", response_model=List[DoctorScheduleOut])
 def list_schedules(db: Session = Depends(get_session),
                    doctor_id: int | None = None,
                    weekday: Weekday | None = None,
@@ -20,10 +22,10 @@ def list_schedules(db: Session = Depends(get_session),
         q = q.where(DoctorSchedule.doctor_id == doctor_id)
     if weekday is not None:
         q = q.where(DoctorSchedule.weekday == weekday)
-    return db.exec(q.offset(offset).limit(limit)).all()
+    return db.exec(q.order_by('id').offset(offset).limit(limit)).all()
 
 
-@router.get("/{schedule_id}", response_model=DoctorSchedule)
+@router.get("/{schedule_id}", response_model=DoctorScheduleOut)
 def get_schedule(schedule_id: int, db: Session = Depends(get_session)):
     obj = db.get(DoctorSchedule, schedule_id)
     if not obj:
@@ -31,16 +33,20 @@ def get_schedule(schedule_id: int, db: Session = Depends(get_session)):
     return obj
 
 
-@router.post("", response_model=DoctorSchedule, status_code=201)
-def create_schedule(payload: DoctorSchedule, db: Session = Depends(get_session)):
-    db.add(payload)
-    db.commit()
-    db.refresh(payload)
-    return payload
+@router.post("", response_model=DoctorScheduleOut, status_code=201)
+def create_schedule(payload: DoctorScheduleCreate, db: Session = Depends(get_session)):
+    try:
+        payload = DoctorSchedule.model_validate(payload)
+        db.add(payload)
+        db.commit()
+        db.refresh(payload)
+        return payload
+    except IntegrityError as e:
+        raise HTTPException(status_code=400, detail=f"{e.orig}")
 
 
-@router.patch("/{schedule_id}", response_model=DoctorSchedule)
-def update_schedule(schedule_id: int, payload: DoctorSchedule, db: Session = Depends(get_session)):
+@router.patch("/{schedule_id}", response_model=DoctorScheduleOut)
+def update_schedule(schedule_id: int, payload: DoctorScheduleUpdate, db: Session = Depends(get_session)):
     obj = db.get(DoctorSchedule, schedule_id)
     if not obj:
         raise HTTPException(404, "Schedule not found")

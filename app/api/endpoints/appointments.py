@@ -5,11 +5,12 @@ from sqlmodel import Session, select
 from app.db.session import get_session
 from app.models import Appointment, AppointmentStatusHistory
 from app.models.enums import AppointmentStatus
+from app.schema.appointment import AppointmentOut, AppointmentCreate, AppointmentUpdate
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
 
-@router.get("", response_model=List[Appointment])
+@router.get("", response_model=List[AppointmentOut])
 def list_appointments(
         db: Session = Depends(get_session),
         doctor_id: int | None = None,
@@ -28,7 +29,7 @@ def list_appointments(
     return db.exec(q.offset(offset).limit(limit)).all()
 
 
-@router.get("/{appointment_id}", response_model=Appointment)
+@router.get("/{appointment_id}", response_model=AppointmentOut)
 def get_appointment(appointment_id: int, db: Session = Depends(get_session)):
     obj = db.get(Appointment, appointment_id)
     if not obj:
@@ -36,16 +37,16 @@ def get_appointment(appointment_id: int, db: Session = Depends(get_session)):
     return obj
 
 
-@router.post("", response_model=Appointment, status_code=201)
-def create_appointment(payload: Appointment, db: Session = Depends(get_session)):
+@router.post("", response_model=AppointmentOut, status_code=201)
+def create_appointment(payload: AppointmentCreate, db: Session = Depends(get_session)):
     db.add(payload)
     db.commit()
     db.refresh(payload)
     return payload
 
 
-@router.patch("/{appointment_id}", response_model=Appointment)
-def update_appointment(appointment_id: int, payload: Appointment, db: Session = Depends(get_session)):
+@router.patch("/{appointment_id}", response_model=AppointmentOut)
+def update_appointment(appointment_id: int, payload: AppointmentUpdate, db: Session = Depends(get_session)):
     obj = db.get(Appointment, appointment_id)
     if not obj:
         raise HTTPException(404, "Appointment not found")

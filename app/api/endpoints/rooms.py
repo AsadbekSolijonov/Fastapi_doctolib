@@ -4,11 +4,13 @@ from sqlmodel import Session, select
 
 from app.db.session import get_session
 from app.models.branch import Room
+from app.schema.branch import RoomOut, RoomCreate, RoomUpdate
+from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 
-@router.get("", response_model=List[Room])
+@router.get("", response_model=List[RoomOut])
 def list_rooms(db: Session = Depends(get_session),
                section_id: int | None = None,
                limit: int = Query(100, ge=1, le=500),
@@ -19,7 +21,7 @@ def list_rooms(db: Session = Depends(get_session),
     return db.exec(q.offset(offset).limit(limit)).all()
 
 
-@router.get("/{room_id}", response_model=Room)
+@router.get("/{room_id}", response_model=RoomOut)
 def get_room(room_id: int, db: Session = Depends(get_session)):
     obj = db.get(Room, room_id)
     if not obj:
@@ -27,16 +29,20 @@ def get_room(room_id: int, db: Session = Depends(get_session)):
     return obj
 
 
-@router.post("", response_model=Room, status_code=201)
-def create_room(payload: Room, db: Session = Depends(get_session)):
-    db.add(payload)
-    db.commit()
-    db.refresh(payload)
-    return payload
+@router.post("", response_model=RoomOut, status_code=201)
+def create_room(payload: RoomCreate, db: Session = Depends(get_session)):
+    try:
+        payload = Room.model_validate(payload)
+        db.add(payload)
+        db.commit()
+        db.refresh(payload)
+        return payload
+    except IntegrityError as e:
+        raise HTTPException(status_code=400, detail=f"{e.orig}")
 
 
-@router.patch("/{room_id}", response_model=Room)
-def update_room(room_id: int, payload: Room, db: Session = Depends(get_session)):
+@router.patch("/{room_id}", response_model=RoomOut)
+def update_room(room_id: int, payload: RoomUpdate, db: Session = Depends(get_session)):
     obj = db.get(Room, room_id)
     if not obj:
         raise HTTPException(404, "Room not found")

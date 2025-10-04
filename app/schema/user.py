@@ -9,6 +9,7 @@ class UserBase(SQLModel):
     email: EmailStr
     phone: str
     bio: str | None = None
+    specialty_id: int | None = None
 
 
 class UserOut(UserBase):  # ReadOnly

@@ -26,14 +26,18 @@ class User(SQLModel, table=True):
     specialty: Optional["Specialty"] = Relationship(back_populates='users')
 
     # Appointments (ikki tomonga ajratilgan)
-    # doctor_appointments: list["Appointment"] = Relationship(
-    #     back_populates="doctor",
-    #     sa_relationship_kwargs={"foreign_keys": ["Appointment.doctor_id"]}
-    # )
-    # patient_appointments: list["Appointment"] = Relationship(
-    #     back_populates="patient",
-    #     sa_relationship_kwargs={"foreign_keys": ["Appointment.patient_id"]}
-    # )
+    doctor_appointments: list["Appointment"] = Relationship(back_populates="doctor",
+                                                            sa_relationship_kwargs={
+                                                                "primaryjoin": "User.id == Appointment.doctor_id",
+                                                                "foreign_keys": "[Appointment.doctor_id]",
+                                                            },
+                                                            )
+    patient_appointments: list["Appointment"] = Relationship(back_populates="patient",
+                                                             sa_relationship_kwargs={
+                                                                 "primaryjoin": "User.id == Appointment.patient_id",
+                                                                 "foreign_keys": "[Appointment.patient_id]",
+                                                             },
+                                                             )
 
     # Status history author relationship (agar kerak bo‘lsa)
     status_changes: list["AppointmentStatusHistory"] = Relationship(back_populates="changed_by_user")

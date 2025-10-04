@@ -7,7 +7,6 @@ settings = get_settings()
 
 engine = create_engine(
     settings.DATABASE_URL,
-    echo=True,
     connect_args={"check_same_thread": False} if settings.DATABASE_URL.startswith('sqlite') else {}
 )
 
