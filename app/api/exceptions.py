@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 
 
 class BaseAuthExpn(HTTPException):
+    #BaseAuthExpn first to improve
     def __init__(self,
                  status_code: int = status.HTTP_401_UNAUTHORIZED,
                  detail: str = 'UnAuthorized',
